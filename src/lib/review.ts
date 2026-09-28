@@ -219,7 +219,9 @@ function scoreTerms(checks: TermCheck[], text: string, where: string): Outcome {
     const min = c.min ?? 1
     return { ...c, n, min, fraction: Math.min(1, n / min) }
   })
-  const describe = (r: (typeof results)[number]) => (r.min > 1 ? `${r.label} (${Math.min(r.n, 999)}/${r.min})` : r.label)
+  // "3/5" while short of the minimum, "7 found" once it is met.
+  const describe = (r: (typeof results)[number]) =>
+    r.min > 1 ? (r.n >= r.min ? `${r.label} (${r.n} found)` : `${r.label} (${r.n}/${r.min})`) : r.label
   const found = results.filter((r) => r.fraction >= 1)
   const missing = results.filter((r) => r.fraction < 1)
   const fraction = results.reduce((sum, r) => sum + r.fraction, 0) / results.length
