@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Git Club Arena · Learn by building</title>
+    <meta
+      name="description"
+      content="Weekly coding, design and web challenges from Git Club CHARUSAT. Pick a challenge, push your work to GitHub, earn XP and climb the leaderboard."
+    />
+    <meta name="theme-color" content="#faf8f4" />
+    <script>
+      // Apply the saved (or system) theme before first paint so dark-mode users never see a white flash.
+      try {
+        var theme = localStorage.getItem('gitclub-theme')
+        if (theme !== 'light' && theme !== 'dark') theme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+        document.documentElement.dataset.theme = theme
+        if (theme === 'dark') document.querySelector('meta[name="theme-color"]').setAttribute('content', '#13110e')
+      } catch (e) {}
+    </script>
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Git Club Arena · Learn by building" />
+    <meta
+      property="og:description"
+      content="Weekly coding, design and web challenges from Git Club CHARUSAT. Build, push, get reviewed, climb the board."
+    />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Instrument+Sans:wght@400..700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
