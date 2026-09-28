@@ -1,13 +1,9 @@
-import {
-  getRedirectResult,
-  onAuthStateChanged,
-  signOut as firebaseSignOut,
-  signInWithPopup,
-  signInWithRedirect,
-  type User,
-} from 'firebase/auth'
+import type { User } from 'firebase/auth'
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { auth, firebaseEnabled, githubProvider, googleProvider } from '../lib/firebase'
+import { firebaseEnabled } from '../lib/firebaseConfig'
+
+/** Firebase loads after first paint; by the time anyone clicks "Sign in" it is already here. */
+const loadAuth = () => Promise.all([import('../lib/firebase'), import('firebase/auth')])
 
 export type AuthProviderId = 'google' | 'github' | 'demo'
 
@@ -83,22 +79,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<Status>('loading')
 
   useEffect(() => {
-    if (!auth) {
+    if (!firebaseEnabled) {
       const demo = readDemo()
       setUser(demo)
       setStatus(demo ? 'signed-in' : 'signed-out')
       return
     }
-    // Completes a redirect sign-in (used when a popup was blocked).
-    getRedirectResult(auth).catch(() => undefined)
-    return onAuthStateChanged(auth, (next) => {
-      setUser(next ? mapUser(next) : null)
-      setStatus(next ? 'signed-in' : 'signed-out')
-    })
+    let cancelled = false
+    let unsubscribe: (() => void) | undefined
+    loadAuth()
+      .then(([{ auth }, { getRedirectResult, onAuthStateChanged }]) => {
+        if (cancelled) return
+        // Completes a redirect sign-in (used when a popup was blocked).
+        getRedirectResult(auth).catch(() => undefined)
+        unsubscribe = onAuthStateChanged(auth, (next) => {
+          setUser(next ? mapUser(next) : null)
+          setStatus(next ? 'signed-in' : 'signed-out')
+        })
+      })
+      .catch(() => {
+        if (!cancelled) setStatus('signed-out')
+      })
+    return () => {
+      cancelled = true
+      unsubscribe?.()
+    }
   }, [])
 
   const signIn = useCallback(async (provider: 'google' | 'github') => {
-    if (!auth) throw new Error('Sign-in isn’t configured on this build.')
+    if (!firebaseEnabled) throw new Error('Sign-in isn’t configured on this build.')
+    const [{ auth, githubProvider, googleProvider }, { signInWithPopup, signInWithRedirect }] = await loadAuth()
     const p = provider === 'google' ? googleProvider() : githubProvider()
     try {
       await signInWithPopup(auth, p)
@@ -141,7 +151,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const signOut = useCallback(async () => {
-    if (!auth || user?.provider === 'demo') {
+    if (!firebaseEnabled || user?.provider === 'demo') {
       try {
         window.localStorage.removeItem(DEMO_KEY)
       } catch {
@@ -151,6 +161,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setStatus('signed-out')
       return
     }
+    const [{ auth }, { signOut: firebaseSignOut }] = await loadAuth()
     await firebaseSignOut(auth)
   }, [user])
 

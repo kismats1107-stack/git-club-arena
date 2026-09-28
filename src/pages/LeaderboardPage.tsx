@@ -9,6 +9,7 @@ import type { Year } from '../data/types'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useNow } from '../hooks/useNow'
 import { cn } from '../lib/cn'
+import { cloudEnabled } from '../lib/cloud'
 import { buildBoard, nextRival, recommendChallenge, YOU_ID } from '../lib/progress'
 import { climbMessage, useArena } from '../state/arena'
 
@@ -26,12 +27,7 @@ function scrollToYou(smooth: boolean) {
 
 export function LeaderboardPage() {
   useDocumentTitle('Leaderboard')
-  const { profile, xp, rank, solved, streak, state, clearClimb, requireProfile, others, refreshCommunity } = useArena()
-
-  // Pull the latest real builders each time the board is opened.
-  useEffect(() => {
-    refreshCommunity()
-  }, [refreshCommunity])
+  const { profile, xp, rank, solved, streak, state, clearClimb, requireProfile, others } = useArena()
   const [yearFilter, setYearFilter] = useState<Year | null>(null)
   const now = useNow(30_000)
 
@@ -69,6 +65,12 @@ export function LeaderboardPage() {
       <p className="mt-3 max-w-xl text-ink-soft">
         Season standings for everyone who has earned XP in Arena challenges. It updates the moment a submission is merged.
       </p>
+      {cloudEnabled && (
+        <p className="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-easy">
+          <span className="h-2 w-2 animate-pulse-dot rounded-full bg-easy" aria-hidden="true" />
+          Updating live · real builders are tagged LIVE
+        </p>
+      )}
 
       {/* ---------- Your standing ---------- */}
       <div className="mt-8 rounded-card border border-line bg-surface p-5 shadow-card sm:p-6">

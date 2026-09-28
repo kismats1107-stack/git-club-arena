@@ -1,9 +1,10 @@
-import { BadgeCheck, Cloud, Flame, GitCommitHorizontal, GitMerge, HardDrive, Layers, Lock, LogOut, Mountain, ShieldCheck, Timer, Trophy, Zap } from 'lucide-react'
+import { BadgeCheck, Flame, GitCommitHorizontal, GitMerge, Layers, Lock, LogOut, Mountain, ShieldCheck, Timer, Trophy, Zap } from 'lucide-react'
 import { Link } from 'react-router'
 import { ActivityHeatmap } from '../components/ActivityHeatmap'
 import { Avatar } from '../components/Avatar'
 import { buttonClass } from '../components/Button'
 import { NextUpCard } from '../components/NextUpCard'
+import { SyncBadge } from '../components/SyncBadge'
 import { CategoryTag, StatusPill, displayStatus } from '../components/Tags'
 import { PASS_MARK } from '../config'
 import { getChallenge } from '../data/challenges'
@@ -71,7 +72,7 @@ function JoinPrompt() {
 export function ProfilePage() {
   useDocumentTitle('My progress')
   const now = useNow(60_000)
-  const { profile, account, cloudSync, xp, level, rank, streak, solved, badges, state, ready, signOut } = useArena()
+  const { profile, account, syncStatus, xp, level, rank, streak, solved, badges, state, ready, signOut } = useArena()
   if (account && !ready) return <div className="mx-auto max-w-6xl px-4 py-24 text-center text-muted" role="status">Loading your profile…</div>
   if (!profile) return <JoinPrompt />
 
@@ -133,10 +134,7 @@ export function ProfilePage() {
               )}
             </span>
           )}
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-paper px-2.5 py-1 text-ink-soft">
-            {cloudSync ? <Cloud className="h-3.5 w-3.5 text-easy" aria-hidden="true" /> : <HardDrive className="h-3.5 w-3.5" aria-hidden="true" />}
-            {cloudSync ? 'Synced to your account' : 'Saved in this browser (demo)'}
-          </span>
+          <SyncBadge status={syncStatus} />
           <button
             type="button"
             onClick={() => void signOut()}

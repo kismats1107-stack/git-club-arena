@@ -1,6 +1,5 @@
-import { collection, doc, getDoc, getDocs, limit, orderBy, query, setDoc } from 'firebase/firestore/lite'
 import type { Participant } from '../data/types'
-import { db } from './firebase'
+import { firebaseEnabled } from './firebaseConfig'
 import type { ArenaState } from './progress'
 
 /*
@@ -8,9 +7,12 @@ import type { ArenaState } from './progress'
  *   users/{uid}        private — the full Arena state, readable only by its owner
  *   leaderboard/{uid}  public  — name, year, branch, XP, solved and streak
  * Security rules live in firestore.rules at the project root.
+ * The Firestore SDK is imported lazily so it never delays the first paint.
  */
 
-export const cloudEnabled = Boolean(db)
+export const cloudEnabled = firebaseEnabled
+
+const loadFirestore = () => Promise.all([import('./firebase'), import('firebase/firestore')])
 
 export interface SavedState {
   state: ArenaState
@@ -28,7 +30,8 @@ export interface PublicEntry {
 }
 
 export async function loadCloudState(uid: string): Promise<SavedState | null> {
-  if (!db) return null
+  if (!cloudEnabled) return null
+  const [{ db }, { doc, getDoc }] = await loadFirestore()
   const snap = await getDoc(doc(db, 'users', uid))
   if (!snap.exists()) return null
   const data = snap.data() as { state?: string; savedAt?: number }
@@ -37,7 +40,8 @@ export async function loadCloudState(uid: string): Promise<SavedState | null> {
 }
 
 export async function saveCloudState(uid: string, saved: SavedState, entry: PublicEntry | null): Promise<void> {
-  if (!db) return
+  if (!cloudEnabled) return
+  const [{ db }, { doc, setDoc }] = await loadFirestore()
   // Stored as JSON so nested progress maps never trip Firestore field-name rules.
   const writes: Array<Promise<void>> = [
     setDoc(doc(db, 'users', uid), { state: JSON.stringify({ ...saved.state, climb: null }), savedAt: saved.savedAt }),
@@ -46,24 +50,49 @@ export async function saveCloudState(uid: string, saved: SavedState, entry: Publ
   await Promise.all(writes)
 }
 
-/** Real builders on the board, shaped like the seeded participants. */
-export async function loadCommunity(excludeUid?: string): Promise<Participant[]> {
-  if (!db) return []
-  const snap = await getDocs(query(collection(db, 'leaderboard'), orderBy('xp', 'desc'), limit(50)))
-  return snap.docs
-    .filter((d) => d.id !== excludeUid)
-    .map((d) => {
-      const e = d.data() as PublicEntry
-      return {
-        id: `live-${d.id}`,
-        name: String(e.name).slice(0, 40),
-        year: (Math.min(4, Math.max(1, Number(e.year) || 1)) as Participant['year']),
-        branch: e.branch as Participant['branch'],
-        xp: Number(e.xp) || 0,
-        solved: Number(e.solved) || 0,
-        streak: Number(e.streak) || 0,
-        live: true,
-      }
+function toParticipant(id: string, e: PublicEntry): Participant {
+  return {
+    id: `live-${id}`,
+    name: String(e.name).slice(0, 40),
+    year: Math.min(4, Math.max(1, Number(e.year) || 1)) as Participant['year'],
+    branch: e.branch as Participant['branch'],
+    xp: Number(e.xp) || 0,
+    solved: Number(e.solved) || 0,
+    streak: Number(e.streak) || 0,
+    live: true,
+  }
+}
+
+/**
+ * Real builders on the board, live: the callback fires once with the current top 50
+ * and again whenever anyone's score changes. Returns an unsubscribe function.
+ */
+export function subscribeCommunity(
+  excludeUid: string | undefined,
+  onChange: (people: Participant[]) => void,
+  onError: () => void,
+): () => void {
+  if (!cloudEnabled) return () => undefined
+  let stopped = false
+  let unsubscribe: (() => void) | undefined
+  loadFirestore()
+    .then(([{ db }, { collection, limit, onSnapshot, orderBy, query }]) => {
+      if (stopped) return
+      unsubscribe = onSnapshot(
+        query(collection(db, 'leaderboard'), orderBy('xp', 'desc'), limit(50)),
+        (snap) =>
+          onChange(
+            snap.docs
+              .filter((d) => d.id !== excludeUid)
+              .map((d) => toParticipant(d.id, d.data() as PublicEntry))
+              .filter((p) => p.xp > 0),
+          ),
+        onError,
+      )
     })
-    .filter((p) => p.xp > 0)
+    .catch(onError)
+  return () => {
+    stopped = true
+    unsubscribe?.()
+  }
 }

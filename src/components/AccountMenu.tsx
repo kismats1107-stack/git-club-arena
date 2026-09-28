@@ -7,6 +7,7 @@ import { useArena } from '../state/arena'
 import { Avatar } from './Avatar'
 import { GithubIcon, GoogleIcon } from './Brand'
 import { buttonClass } from './Button'
+import { SyncBadge } from './SyncBadge'
 
 /** Counts up to the new value so earning XP is felt, not just shown. */
 function AnimatedNumber({ value }: { value: number }) {
@@ -54,7 +55,7 @@ function LogoutButton({ onLogout }: { onLogout: () => void }) {
 
 /** Header account area: sign-in buttons, "finish setup", or the signed-in account menu. */
 export function AccountArea() {
-  const { account, profile, ready, xp, level, requireProfile, openSignIn, signOut } = useArena()
+  const { account, profile, ready, xp, level, syncStatus, requireProfile, openSignIn, signOut } = useArena()
   const [open, setOpen] = useState(false)
   const wrapRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -164,6 +165,7 @@ export function AccountArea() {
                       </span>
                     )}
                   </div>
+                  <SyncBadge status={syncStatus} className="mt-2 border-0 bg-transparent px-0 py-0" />
                 </div>
               </div>
               <div className="p-2">

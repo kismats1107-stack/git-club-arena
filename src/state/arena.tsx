@@ -6,7 +6,7 @@ import { PASS_MARK } from '../config'
 import { getChallenge } from '../data/challenges'
 import { PARTICIPANTS } from '../data/participants'
 import type { Participant } from '../data/types'
-import { cloudEnabled, loadCloudState, loadCommunity, saveCloudState, type PublicEntry, type SavedState } from '../lib/cloud'
+import { cloudEnabled, loadCloudState, saveCloudState, subscribeCommunity, type PublicEntry, type SavedState } from '../lib/cloud'
 import {
   BADGES,
   INITIAL_STATE,
@@ -80,6 +80,9 @@ export function climbMessage(climb: Climb): string {
 
 type SignInMode = 'signin' | 'signup'
 
+/** idle: nothing to sync (signed out / demo) · saving · synced · error: cloud unreachable, retrying */
+export type SyncStatus = 'idle' | 'saving' | 'synced' | 'error'
+
 interface ArenaContextValue {
   state: ArenaState
   profile: Profile | null
@@ -88,6 +91,7 @@ interface ArenaContextValue {
   /** True once the account's saved progress has been loaded. */
   ready: boolean
   cloudSync: boolean
+  syncStatus: SyncStatus
   xp: number
   level: ReturnType<typeof getLevel>
   rank: number | null
@@ -96,7 +100,6 @@ interface ArenaContextValue {
   badges: BadgeId[]
   /** Everyone on the board except you: sample builders plus real accounts from the cloud. */
   others: Participant[]
-  refreshCommunity: () => void
   progressFor: (slug: string) => ChallengeProgress | undefined
   /** Runs `then` once the visitor is signed in and has a profile, asking for whichever is missing. */
   requireProfile: (then?: () => void) => void
@@ -125,6 +128,8 @@ export function ArenaProvider({ children }: { children: ReactNode }) {
   const [community, setCommunity] = useState<Participant[]>([])
   const [dialog, setDialog] = useState<'signin' | 'setup' | null>(null)
   const [signInMode, setSignInMode] = useState<SignInMode>('signin')
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle')
+  const [retryTick, setRetryTick] = useState(0)
 
   const stateRef = useRef(state)
   const readyRef = useRef(ready)
@@ -159,19 +164,28 @@ export function ArenaProvider({ children }: { children: ReactNode }) {
     stateRef.current = initial
     setState(initial)
     if (!syncsToCloud) {
+      setSyncStatus('idle')
       setLoadedFor(uid)
       return
     }
     let cancelled = false
-    const timeout = new Promise<null>((resolve) => window.setTimeout(() => resolve(null), 5000))
+    const timeout = new Promise<'timeout'>((resolve) => window.setTimeout(() => resolve('timeout'), 5000))
     Promise.race([loadCloudState(uid), timeout])
       .then((remote) => {
-        if (cancelled || !remote || remote.savedAt <= (local?.savedAt ?? 0)) return
+        if (cancelled) return
+        if (remote === 'timeout') {
+          setSyncStatus('error')
+          return
+        }
+        setSyncStatus('synced')
+        if (!remote || remote.savedAt <= (local?.savedAt ?? 0)) return
         const fresh = normalize(remote.state)
         stateRef.current = fresh
         setState(fresh)
       })
-      .catch(() => undefined)
+      .catch(() => {
+        if (!cancelled) setSyncStatus('error')
+      })
       .finally(() => {
         if (!cancelled) setLoadedFor(uid)
       })
@@ -206,21 +220,34 @@ export function ArenaProvider({ children }: { children: ReactNode }) {
             updatedAt: saved.savedAt,
           }
         : null
-    const t = window.setTimeout(() => saveCloudState(uid, saved, entry).catch(() => undefined), 1200)
+    const t = window.setTimeout(() => {
+      setSyncStatus('saving')
+      saveCloudState(uid, saved, entry)
+        .then(() => setSyncStatus('synced'))
+        .catch(() => setSyncStatus('error'))
+    }, 1200)
     return () => window.clearTimeout(t)
-  }, [state, ready, uid, syncsToCloud, xp, solved, streak])
+  }, [state, ready, uid, syncsToCloud, xp, solved, streak, retryTick])
 
-  /* ----- Real builders on the leaderboard ----- */
-  const refreshCommunity = useCallback(() => {
-    if (!cloudEnabled) return
-    loadCommunity(uid ?? undefined)
-      .then(setCommunity)
-      .catch(() => undefined)
-  }, [uid])
-
+  // If the cloud was unreachable, keep retrying quietly — progress uploads by itself once it's back.
   useEffect(() => {
-    refreshCommunity()
-  }, [refreshCommunity])
+    if (syncStatus !== 'error' || !syncsToCloud) return
+    const retry = () => setRetryTick((n) => n + 1)
+    const id = window.setInterval(retry, 20_000)
+    window.addEventListener('online', retry)
+    window.addEventListener('focus', retry)
+    return () => {
+      window.clearInterval(id)
+      window.removeEventListener('online', retry)
+      window.removeEventListener('focus', retry)
+    }
+  }, [syncStatus, syncsToCloud])
+
+  /* ----- Real builders on the leaderboard, updated live as anyone scores ----- */
+  useEffect(() => {
+    if (!cloudEnabled) return
+    return subscribeCommunity(uid ?? undefined, setCommunity, () => setCommunity([]))
+  }, [uid])
 
   const others = useMemo(() => [...PARTICIPANTS, ...community], [community])
   const othersRef = useRef(others)
@@ -462,6 +489,7 @@ export function ArenaProvider({ children }: { children: ReactNode }) {
       account: user,
       ready,
       cloudSync: syncsToCloud,
+      syncStatus,
       xp,
       level: getLevel(xp),
       rank: rankFor(xp, others),
@@ -469,7 +497,6 @@ export function ArenaProvider({ children }: { children: ReactNode }) {
       solved,
       badges,
       others,
-      refreshCommunity,
       progressFor: (slug) => state.progress[slug],
       requireProfile,
       openSignIn,
@@ -492,7 +519,7 @@ export function ArenaProvider({ children }: { children: ReactNode }) {
       solved,
       badges,
       others,
-      refreshCommunity,
+      syncStatus,
       requireProfile,
       openSignIn,
       signOut,
