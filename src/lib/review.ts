@@ -305,6 +305,13 @@ async function evaluate(rule: Rule, ctx: Context): Promise<Outcome> {
       return { fraction: 0, evidence: `${rule.label[0].toUpperCase()}${rule.label.slice(1)} in ${targets[hit].path}${line > 0 ? ` (line ${line})` : ''}` }
     }
 
+    case 'noFile': {
+      const found = snapshot.files.find((f) => test(rule.path, f.path))
+      return found
+        ? { fraction: 0, evidence: `${found.path} is committed — remove it from Git and rotate anything inside it` }
+        : { fraction: 1, evidence: `No ${rule.label} in the repository` }
+    }
+
     case 'commits': {
       const n = sinceOpen.length
       return {

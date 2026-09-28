@@ -38,6 +38,8 @@ export type Rule =
   | { kind: 'eachFile'; path: RegExp; scope: string; pattern: RegExp; label: string; min?: number }
   /** No file matching `path` contains `pattern`. */
   | { kind: 'noContent'; path: RegExp; pattern: RegExp; label: string }
+  /** No file matching `path` exists (e.g. a committed .env). */
+  | { kind: 'noFile'; path: RegExp; label: string }
   /** At least `min` commits pushed since the challenge opened. */
   | { kind: 'commits'; min: number }
   /** A merge commit (two parents) exists on the default branch. */
