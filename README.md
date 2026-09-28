@@ -4,6 +4,8 @@
 
 Built for the Git Club CHARUSAT Website Challenge — Problem Statement 4, *Challenge Arena*.
 
+![Git Club Arena landing page: a 3D ring of challenge posters behind a preview of the Arena](docs/screenshot.jpg)
+
 ## The user journey
 
 **Landing (`/`)** — a cinematic 3D front door: a rotating perspective ring of 37 Arena "posters" (drag or swipe to spin), a browser mock of the real Arena in front of it, a choreographed entrance, then the story, how it works, how scoring works and a final call to enter. The hero is authored on a fixed 1172 × 657 design canvas scaled to the viewport, with a tablet ramp and a genuine flow layout on phones.
@@ -43,15 +45,31 @@ A `git status`-style **Next up** card is always visible on the home page and pro
 
 ## Tech
 
-React 19 · TypeScript · Vite · Tailwind CSS v4 · React Router · Motion · Lucide icons. No backend: challenge data lives in `src/data/`, participant progress is stored in `localStorage`.
+React 19 · TypeScript · Vite · Tailwind CSS v4 · React Router · Motion · Lucide icons · Firebase (Authentication + Firestore). Challenge data lives in `src/data/`; progress is saved per account in Firestore and cached in the browser.
+
+## Getting started
+
+Requires Node.js 22.12 or newer.
 
 ```bash
+git clone https://github.com/kismats1107-stack/git-club-arena.git
+cd git-club-arena
 npm install
-npm run dev      # http://localhost:5173
-npm run build    # production build in dist/
+cp .env.example .env.local   # then fill in your Firebase web config
 ```
 
-Deployed on Vercel; `vercel.json` (and `public/_redirects` for Netlify) route every path to the app so deep links work on refresh.
+Without `.env.local` the app still runs, in a clearly labelled demo mode (one local account per browser).
+
+## Usage
+
+```bash
+npm run dev       # development server at http://localhost:5173
+npm run build     # type-check and build to dist/
+npm run preview   # serve the production build at http://localhost:4173
+npm run lint      # oxlint
+```
+
+Deployed on Vercel: `vercel.json` pins the build settings and routes every path to the app so deep links survive a refresh (`public/_redirects` does the same on Netlify).
 
 ## Accounts and security
 
